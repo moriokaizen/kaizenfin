@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaizen Fin - v20 Final Revisada</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+        body { background-color: #020617; color: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+        .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; padding: 20px; }
+        .sidebar-btn { background: #1e293b; width: 100%; padding: 12px; border-radius: 12px; text-align: left; margin-bottom: 8px; font-size: 13px; transition: 0.2s; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; }
+        .sidebar-btn:hover { border-color: #3b82f6; background: #1e293b; }
+        input, select { background: #0f172a !important; border: 1px solid #334155 !important; color: white !important; border-radius: 8px; padding: 8px 12px; outline: none; }
+        .modal { display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); align-items: center; justify-content: center; z-index: 100; padding: 15px; }
+        .alert-banner { background: rgba(244, 63, 94, 0.1); border: 1px solid #f43f5e; color: #fb7185; padding: 12px; border-radius: 12px; margin-bottom: 20px; display: none; }
+        ::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.4; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div class="lg:col-span-1 space-y-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl">K</div>
+                <h1 class="text-xl font-bold tracking-tight uppercase italic">Kaizen <span class="text-blue-500">Fin</span></h1>
+            </div>
+            <div class="py-2">
+                <p id="greeting" class="text-[10px] text-blue-400 font-bold uppercase tracking-widest opacity-60"></p>
+                <h2 id="userNameDisplay" class="text-lg font-bold">Usuário</h2>
+            </div>
+            <nav>
+                <button onclick="openTransactionModal()" class="sidebar-btn bg-blue-600 text-white font-bold hover:bg-blue-700"><span>+</span> Nova Transação</button>
+                <div class="mt-6">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase mb-3 ml-1">Exportar</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="openModal('modalExportExcel')" class="sidebar-btn justify-center text-emerald-500 border-emerald-900/30 font-bold">EXCEL</button>
+                        <button onclick="openModal('modalExportPDF')" class="sidebar-btn justify-center text-rose-500 border-rose-900/30 font-bold">PDF</button>
+                    </div>
+                </div>
+                <button onclick="openModal('modalConfig')" class="sidebar-btn mt-10 text-slate-500 border-dashed border-slate-800">⚙️ Ajustes & Cores</button>
+            </nav>
+        </div>
+
+        <div class="lg:col-span-3 space-y-6">
+            <div id="alertArea" class="alert-banner font-bold text-sm text-center"></div>
+
+            <div class="flex flex-col md:flex-row justify-between items-center px-2 py-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-slate-500 font-bold uppercase">Mês Referente:</span>
+                    <input type="month" id="monthFilter" onchange="render()" class="!w-auto bg-transparent border-none text-sm font-bold text-blue-500 cursor-pointer p-0">
+                </div>
+                <p id="motivationalPhrase" class="text-[11px] text-slate-500 italic mt-2 md:mt-0 text-right"></p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div class="card"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Entradas</p><h2 id="resIn" class="text-xl font-bold text-emerald-400">0</h2></div>
+                <div class="card"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Saídas</p><h2 id="resOut" class="text-xl font-bold text-rose-500">0</h2></div>
+                <div class="card bg-slate-800/20"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Saldo Líquido</p><h2 id="resTotal" class="text-xl font-bold text-white">0</h2></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="card border-blue-900/20"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Reserva Acumulada</p><h2 id="resSaved" class="text-xl font-bold text-blue-400">0</h2></div>
+                <div class="card bg-blue-600/5 border-blue-500/10">
+                    <p class="text-blue-400 text-[10px] uppercase font-bold mb-1">Ainda Posso Usar (Meta)</p>
+                    <h2 id="resBudget" class="text-xl font-bold">0</h2>
+                    <p id="budgetLabel" class="text-[9px] text-slate-500 italic mt-1"></p>
+                </div>
+            </div>
+
+            <div class="card"><div class="h-[250px] w-full"><canvas id="expenseChart"></canvas></div></div>
+            <div id="list" class="space-y-2"></div>
+            <div class="card border-blue-900/20"><div class="h-[180px] w-full"><canvas id="evolutionChart"></canvas></div></div>
+        </div>
+    </div>
+
+    <div id="modalTransacao" class="modal">
+        <div class="bg-[#0f172a] p-8 rounded-3xl w-full max-w-md border border-slate-700">
+            <h2 id="modalTitle" class="text-xl font-bold mb-6 text-center">Lançamento</h2>
+            <input type="hidden" id="editId">
+            <div class="space-y-4">
+                <input type="text" id="tVal" placeholder="0,00" oninput="formatCurrency(this)" class="text-3xl font-bold w-full text-center">
+                <div class="grid grid-cols-2 gap-3">
+                    <select id="tCat"></select>
+                    <input type="date" id="tDate">
+                </div>
+                <div id="dueArea" class="hidden"><label class="text-[10px] text-rose-400 font-bold uppercase mb-1 block">Vencimento</label><input type="date" id="tDue" class="w-full"></div>
+                <input type="text" id="tDes" placeholder="Descrição...">
+                <select id="tTyp" onchange="toggleDue(this.value)" class="w-full">
+                    <option value="in">Entrada (+)</option>
+                    <option value="out" selected>Saída (-)</option>
+                    <option value="save">Reserva</option>
+                </select>
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closeModal('modalTransacao')" class="flex-1 p-3 bg-slate-800 rounded-xl font-bold text-xs">Voltar</button>
+                    <button onclick="saveTransaction()" class="flex-1 p-3 bg-blue-600 rounded-xl font-bold text-xs">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalConfig" class="modal">
+        <div class="bg-[#0f172a] p-8 rounded-3xl w-full max-w-md border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-xl font-bold mb-6 text-blue-400 text-center">AJUSTES</h2>
+            <div class="space-y-4">
+                <input type="text" id="cfgName" placeholder="Seu Nome" class="w-full">
+                <div>
+                    <input type="text" id="cfgBudget" oninput="formatCurrency(this)" placeholder="Meta Mensal" class="w-full font-bold">
+                    <p class="text-[10px] text-slate-500 italic mt-1 leading-tight">Valor máximo que você deseja gastar no mês (estilo de vida).</p>
+                </div>
+                <div class="p-3 bg-slate-900 rounded-xl flex items-start gap-2 border border-slate-800">
+                    <input type="checkbox" id="cfgIgnoreFixed" style="width:18px; height:18px; accent-color:#3b82f6;">
+                    <label for="cfgIgnoreFixed" class="text-[10px] text-blue-300 font-bold uppercase leading-tight">Descontar da Meta apenas gastos variáveis (Ignorar "Fixo")</label>
+                </div>
+                <hr class="border-slate-800">
+                <div class="flex gap-2">
+                    <input type="text" id="newCat" placeholder="Nova Categoria..." class="flex-1 text-xs">
+                    <input type="color" id="newCatColor" value="#3b82f6" class="w-10 bg-transparent border-none p-0 cursor-pointer">
+                    <button onclick="addCat()" class="bg-blue-600 px-3 rounded font-bold">+</button>
+                </div>
+                <div id="catList" class="space-y-1"></div>
+                <button onclick="saveConfigs()" class="w-full p-3 bg-blue-600 rounded-xl font-bold mt-4">Salvar Alterações</button>
+                <button onclick="closeModal('modalConfig')" class="w-full text-slate-500 text-xs py-2">Voltar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalExportExcel" class="modal"><div class="bg-[#0f172a] p-6 rounded-2xl w-full max-w-xs border border-slate-700 text-center"><h3 class="font-bold mb-4 text-emerald-500">Exportar Excel</h3><input type="date" id="exStEx" class="w-full mb-2"><input type="date" id="exEnEx" class="w-full mb-4"><button onclick="exportExcel()" class="w-full p-3 bg-emerald-600 rounded-xl font-bold">Download</button></div></div>
+    <div id="modalExportPDF" class="modal"><div class="bg-[#0f172a] p-6 rounded-2xl w-full max-w-xs border border-slate-700 text-center"><h3 class="font-bold mb-4 text-rose-500">Exportar PDF</h3><input type="date" id="exStPd" class="w-full mb-2"><input type="date" id="exEnPd" class="w-full mb-4"><button onclick="exportPDF()" class="w-full p-3 bg-rose-600 rounded-xl font-bold">Download</button></div></div>
+
+    <script>
+        let myChart, lineChart;
+        const phrases = ["Foco no progresso!", "Economizar é liberdade.", "Gerencie seu futuro.", "Disciplina gera resultados."];
+        let settings = JSON.parse(localStorage.getItem('kaizen_v20_cfg')) || { name: "Usuário", currency: "JP¥", budget: 0, ignoreFixed: false, categories: [{n: "Fixo", c: "#3b82f6"}, {n: "Lazer", c: "#f43f5e"}, {n: "Alimentação", c: "#10b981"}] };
+        let db = JSON.parse(localStorage.getItem('kaizen_v20_db')) || [];
+
+        function formatCurrency(i) { let v = i.value.replace(/\D/g,''); v = (v/100).toFixed(2) + ''; v = v.replace(".", ","); v = v.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,"); v = v.replace(/(\d)(\d{3}),/g, "$1.$2,"); i.value = v !== "0,00" ? v : ""; }
+        function parseCurrency(v) { return parseFloat(v.toString().replace(/\./g, '').replace(',', '.')) || 0; }
+        function toggleDue(v) { document.getElementById('dueArea').classList.toggle('hidden', v !== 'out'); }
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; if(id === 'modalConfig') renderCats(); }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function openTransactionModal(editItem = null) {
+            document.getElementById('tCat').innerHTML = settings.categories.map(c => `<option>${c.n}</option>`).join('');
+            if(editItem) {
+                document.getElementById('editId').value = editItem.id;
+                document.getElementById('tVal').value = editItem.val.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                document.getElementById('tCat').value = editItem.cat;
+                document.getElementById('tDate').value = editItem.date;
+                document.getElementById('tDue').value = editItem.due || "";
+                document.getElementById('tDes').value = editItem.des;
+                document.getElementById('tTyp').value = editItem.typ;
+                toggleDue(editItem.typ);
+            } else {
+                document.getElementById('editId').value = "";
+                document.getElementById('tVal').value = "";
+                document.getElementById('tDate').value = new Date().toISOString().slice(0, 10);
+                toggleDue('out');
+            }
+            openModal('modalTransacao');
+        }
+
+        function saveTransaction() {
+            const v = parseCurrency(document.getElementById('tVal').value); if(!v) return;
+            const id = document.getElementById('editId').value;
+            const data = { id: id || Date.now(), val: v, cat: document.getElementById('tCat').value, date: document.getElementById('tDate').value, due: document.getElementById('tDue').value, des: document.getElementById('tDes').value || "Geral", typ: document.getElementById('tTyp').value };
+            if(id) db = db.map(t => t.id == id ? data : t); else db.push(data);
+            localStorage.setItem('kaizen_v20_db', JSON.stringify(db)); closeModal('modalTransacao'); render();
+        }
+
+        function deleteT(id) { if(confirm("Remover?")) { db = db.filter(t => t.id != id); localStorage.setItem('kaizen_v20_db', JSON.stringify(db)); render(); } }
+
+        function renderCats() {
+            document.getElementById('catList').innerHTML = settings.categories.map(c => `<div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800 text-[10px] uppercase font-bold"><div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full" style="background:${c.c}"></div>${c.n}</div><button onclick="remCat('${c.n}')" class="text-rose-500">×</button></div>`).join('');
+            document.getElementById('cfgName').value = settings.name;
+            document.getElementById('cfgBudget').value = settings.budget > 0 ? settings.budget.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : "";
+            document.getElementById('cfgIgnoreFixed').checked = settings.ignoreFixed;
+        }
+
+        function addCat() { const n = document.getElementById('newCat').value.trim(); const c = document.getElementById('newCatColor').value; if(n) { settings.categories.push({n, c}); document.getElementById('newCat').value = ""; renderCats(); } }
+        function remCat(n) { settings.categories = settings.categories.filter(c => c.n !== n); renderCats(); }
+        
+        function saveConfigs() { 
+            settings.name = document.getElementById('cfgName').value; 
+            settings.budget = parseCurrency(document.getElementById('cfgBudget').value); 
+            settings.ignoreFixed = document.getElementById('cfgIgnoreFixed').checked;
+            localStorage.setItem('kaizen_v20_cfg', JSON.stringify(settings)); 
+            closeModal('modalConfig'); render(); 
+        }
+
+        function render() {
+            const f = document.getElementById('monthFilter').value;
+            document.getElementById('userNameDisplay').innerText = settings.name;
+            document.getElementById('greeting').innerText = `Olá, ${new Date().getHours()<12?'Bom dia':new Date().getHours()<18?'Boa tarde':'Boa noite'}`;
+            document.getElementById('motivationalPhrase').innerText = `"${phrases[Math.floor(Math.random() * phrases.length)]}"`;
+            
+            let sIn = 0, sOut = 0, sSave = 0, sBudUse = 0, cats = {}, alerts = [];
+            const list = document.getElementById('list'); list.innerHTML = "";
+
+            db.forEach(t => {
+                if(t.due && t.typ==='out') { const d = Math.ceil((new Date(t.due+"T00:00:00") - new Date()) / (1000*60*60*24)); if(d>=0 && d<=5) alerts.push(t.des); }
+                if(t.date.startsWith(f)) {
+                    if(t.typ==='in') sIn += t.val; 
+                    else if(t.typ==='out') { 
+                        sOut += t.val; cats[t.cat]=(cats[t.cat]||0)+t.val; 
+                        if(!settings.ignoreFixed || t.cat !== "Fixo") sBudUse += t.val;
+                    } else sSave += t.val;
+                    
+                    list.innerHTML += `<div class="flex justify-between items-center p-3 bg-slate-900/40 rounded-xl border border-slate-800"><div class="flex items-center gap-3"><button onclick='openTransactionModal(${JSON.stringify(t)})' class="text-slate-600">✎</button><div class="text-[10px] font-bold uppercase">${t.des}<p class="text-[8px] opacity-40">${t.date} ${t.due?'| Venc:'+t.due:''}</p></div></div><div class="flex items-center gap-3"><span class="${t.typ==='in'?'text-emerald-400':t.typ==='out'?'text-rose-500':'text-blue-400'} font-bold text-xs">${settings.currency} ${t.val.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span><button onclick="deleteT(${t.id})" class="text-slate-800 hover:text-rose-500">✕</button></div></div>`;
+                }
+            });
+
+            document.getElementById('resIn').innerText = `${settings.currency} ${sIn.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('resOut').innerText = `${settings.currency} ${sOut.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('resTotal').innerText = `${settings.currency} ${(sIn-sOut).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('resSaved').innerText = `${settings.currency} ${sSave.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            
+            const rem = settings.budget - sBudUse;
+            document.getElementById('resBudget').innerText = settings.budget > 0 ? `${settings.currency} ${rem.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : "-";
+            document.getElementById('budgetLabel').innerText = settings.ignoreFixed ? "* Ignorando categoria 'Fixo'" : "* Total de gastos abatidos";
+            
+            document.getElementById('alertArea').style.display = alerts.length ? 'block' : 'none';
+            document.getElementById('alertArea').innerText = alerts.length ? `⚠ CONTAS PRÓXIMAS: ${alerts.join(', ')}` : "";
+            
+            updatePizza(cats); updateLine();
+        }
+
+        function updatePizza(data) {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            if(myChart) myChart.destroy();
+            const labels = Object.keys(data);
+            const colors = labels.map(l => settings.categories.find(c => c.n === l)?.c || '#334155');
+            myChart = new Chart(ctx, { type: 'doughnut', data: { labels, datasets: [{ data: Object.values(data), backgroundColor: colors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 9 } } } } } });
+        }
+
+        function updateLine() {
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            if(lineChart) lineChart.destroy();
+            const months = []; for(let i=5; i>=0; i--) { const d = new Date(); d.setMonth(d.getMonth()-i); months.push(d.toISOString().slice(0, 7)); }
+            const dIn = months.map(m => db.filter(t => t.date.startsWith(m) && t.typ === 'in').reduce((a,b)=>a+b.val,0));
+            const dOut = months.map(m => db.filter(t => t.date.startsWith(m) && t.typ === 'out').reduce((a,b)=>a+b.val,0));
+            lineChart = new Chart(ctx, { type: 'line', data: { labels: months.map(m => m.split('-')[1]+'/'+m.split('-')[0].slice(2)), datasets: [{ label: 'Entradas', data: dIn, borderColor: '#10b981', tension: 0.4 }, { label: 'Saídas', data: dOut, borderColor: '#f43f5e', tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { display: false }, x: { grid: { display: false }, ticks: { color: '#475569', font: { size: 8 } } } }, plugins: { legend: { display: false } } } });
+        }
+
+        // --- RELATÓRIOS COM TOTAIS ---
+        function exportExcel() {
+            const st = document.getElementById('exStEx').value, en = document.getElementById('exEnEx').value;
+            const fil = db.filter(t => t.date >= st && t.date <= en);
+            const tIn = fil.filter(t => t.typ === 'in').reduce((a,b)=>a+b.val,0);
+            const tOut = fil.filter(t => t.typ === 'out').reduce((a,b)=>a+b.val,0);
+            let data = fil.map(t => ({ "Data": t.date, "Desc": t.des, "Categoria": t.cat, "Tipo": t.typ, "Valor": t.val }));
+            data.push({}); 
+            data.push({ "Desc": "TOTAL ENTRADAS:", "Valor": tIn });
+            data.push({ "Desc": "TOTAL GASTOS:", "Valor": tOut });
+            data.push({ "Desc": "SALDO LÍQUIDO:", "Valor": tIn - tOut });
+            const ws = XLSX.utils.json_to_sheet(data);
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for(let R = range.s.r + 1; R <= range.e.r; ++R) {
+                const cell = ws[XLSX.utils.encode_cell({r:R, c:4})];
+                if(cell) { cell.t = 'n'; cell.z = '"'+settings.currency+'" #,##0.00'; }
+            }
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Kaizen");
+            XLSX.writeFile(wb, `Relatorio_Excel_${st}.xlsx`);
+        }
+
+        function exportPDF() {
+            const { jsPDF } = window.jspdf; const doc = new jsPDF();
+            const st = document.getElementById('exStPd').value, en = document.getElementById('exEnPd').value;
+            const fil = db.filter(t => t.date >= st && t.date <= en);
+            const tIn = fil.filter(t => t.typ === 'in').reduce((a,b)=>a+b.val,0);
+            const tOut = fil.filter(t => t.typ === 'out').reduce((a,b)=>a+b.val,0);
+            doc.setFontSize(16); doc.text("Kaizen Fin - Relatorio", 14, 20);
+            doc.setFontSize(10); doc.text(`Periodo: ${st} a ${en}`, 14, 28);
+            doc.setFont(undefined, 'bold');
+            doc.text(`Total Entradas: ${settings.currency} ${tIn.toLocaleString('pt-BR')}`, 14, 40);
+            doc.setTextColor(200, 0, 0); doc.text(`Total Saidas: ${settings.currency} ${tOut.toLocaleString('pt-BR')}`, 14, 46);
+            doc.setTextColor(0, 100, 0); doc.text(`Saldo Final: ${settings.currency} ${(tIn-tOut).toLocaleString('pt-BR')}`, 14, 52);
+            doc.setTextColor(0);
+            doc.autoTable({ startY: 60, head: [['Data', 'Descricao', 'Categoria', 'Valor']], body: fil.map(t => [t.date, t.des, t.cat, t.val.toLocaleString('pt-BR')]) });
+            doc.save("Relatorio_PDF.pdf");
+        }
+
+        document.getElementById('monthFilter').value = new Date().toISOString().slice(0, 7);
+        render();
+    </script>
+</body>
+</html>
