@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaizen Fin - v22 Pro</title>
+    <link rel="icon" type="image/png" href="icon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+        body { background-color: #020617; color: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+        .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; padding: 20px; }
+        .sidebar-btn { background: #1e293b; width: 100%; padding: 12px; border-radius: 12px; text-align: left; margin-bottom: 8px; font-size: 13px; transition: 0.2s; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; }
+        .sidebar-btn:hover { border-color: #3b82f6; background: #1e293b; }
+        input, select, textarea { background: #0f172a !important; border: 1px solid #334155 !important; color: white !important; border-radius: 8px; padding: 8px 12px; outline: none; }
+        .modal { display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); align-items: center; justify-content: center; z-index: 100; padding: 15px; }
+        #toast { visibility: hidden; min-width: 200px; background-color: #10b981; color: #fff; text-align: center; border-radius: 12px; padding: 12px; position: fixed; z-index: 1000; bottom: 30px; left: 50%; transform: translateX(-50%); font-weight: bold; font-size: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div id="toast">Salvo com sucesso! ✓</div>
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div class="lg:col-span-1 space-y-6">
+            <div class="mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl">K</div>
+                    <h1 class="text-xl font-bold tracking-tight uppercase italic">Kaizen <span class="text-blue-500">Fin</span></h1>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2 font-semibold">Organize seu dinheiro de forma simples e clara</p>
+            </div>
+
+            <nav>
+                <button onclick="openTransactionModal()" class="sidebar-btn bg-blue-600 text-white font-bold hover:bg-blue-700"><span>+</span> Nova Transação</button>
+                
+                <div class="mt-8">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase mb-3 ml-1 tracking-widest">Relatórios</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="openModal('modalExportExcel')" class="sidebar-btn justify-center text-emerald-500 border-emerald-900/30 font-bold">EXCEL</button>
+                        <button onclick="openModal('modalExportPDF')" class="sidebar-btn justify-center text-rose-500 border-rose-900/30 font-bold">PDF</button>
+                    </div>
+                    <p class="text-[10px] text-slate-600 mt-2 ml-1 italic font-medium">Exporte seu histórico e tenha controle total.</p>
+                </div>
+
+                <div class="mt-8">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase mb-3 ml-1 tracking-widest">Sincronização</p>
+                    <button onclick="exportBackup()" class="sidebar-btn text-blue-400 border-blue-900/30 font-bold">📤 Gerar Backup</button>
+                    <button onclick="openModal('modalImport')" class="sidebar-btn text-amber-500 border-amber-900/30 font-bold">📥 Importar Dados</button>
+                </div>
+
+                <button onclick="openModal('modalConfig')" class="sidebar-btn mt-10 text-slate-500 border-dashed border-slate-800">⚙️ Ajustes & Frase</button>
+            </nav>
+        </div>
+
+        <div class="lg:col-span-3 space-y-6">
+            <div class="flex flex-col md:flex-row justify-between items-center px-2">
+                <div>
+                    <p id="greeting" class="text-[10px] text-blue-400 font-bold uppercase tracking-widest"></p>
+                    <h2 id="userNameDisplay" class="text-xl font-bold">Usuário</h2>
+                    <p id="userPhraseDisplay" class="text-[11px] text-slate-500 italic mt-1"></p>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <input type="month" id="monthFilter" onchange="render()" class="!w-auto bg-transparent border-none text-sm font-bold text-blue-500 cursor-pointer p-0">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div class="card"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Entradas</p><h2 id="resIn" class="text-xl font-bold text-emerald-400">0</h2></div>
+                <div class="card"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Saídas</p><h2 id="resOut" class="text-xl font-bold text-rose-500">0</h2></div>
+                <div class="card bg-slate-800/20"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Saldo Líquido</p><h2 id="resTotal" class="text-xl font-bold text-white">0</h2></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="card border-blue-900/20"><p class="text-slate-500 text-[10px] uppercase font-bold mb-1">Reserva Acumulada</p><h2 id="resSaved" class="text-xl font-bold text-blue-400">0</h2></div>
+                <div class="card bg-blue-600/5 border-blue-500/10">
+                    <p class="text-blue-400 text-[10px] uppercase font-bold mb-1">Disponível para Gastar (Meta)</p>
+                    <h2 id="resBudget" class="text-xl font-bold">0</h2>
+                </div>
+            </div>
+
+            <div class="card"><div class="h-[250px] w-full"><canvas id="expenseChart"></canvas></div></div>
+            <div id="list" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <div id="modalTransacao" class="modal">
+        <div class="bg-[#0f172a] p-8 rounded-3xl w-full max-w-md border border-slate-700">
+            <h2 id="modalTitle" class="text-xl font-bold mb-6 text-center text-blue-500 italic">Lançamento</h2>
+            <input type="hidden" id="editId">
+            <div class="space-y-4">
+                <input type="text" id="tVal" placeholder="0,00" oninput="formatCurrency(this)" class="text-3xl font-bold w-full text-center">
+                <div class="grid grid-cols-2 gap-3">
+                    <select id="tCat"></select>
+                    <input type="date" id="tDate">
+                </div>
+                <input type="text" id="tDes" placeholder="Descrição (Ex: Almoço)">
+                <select id="tTyp" class="w-full font-bold">
+                    <option value="in" class="text-emerald-500">Entrada (+)</option>
+                    <option value="out" selected class="text-rose-500">Saída (-)</option>
+                    <option value="save" class="text-blue-400">Reserva</option>
+                </select>
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closeModal('modalTransacao')" class="flex-1 p-3 bg-slate-800 rounded-xl font-bold text-xs">Voltar</button>
+                    <button onclick="saveTransaction()" class="flex-1 p-3 bg-blue-600 rounded-xl font-bold text-xs text-white">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalConfig" class="modal">
+        <div class="bg-[#0f172a] p-8 rounded-3xl w-full max-w-md border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-xl font-bold mb-6 text-blue-400 text-center">AJUSTES DO APP</h2>
+            <div class="space-y-4">
+                <label class="text-[10px] font-bold text-slate-500">SEU NOME NO RELATÓRIO</label>
+                <input type="text" id="cfgName" placeholder="Seu Nome" class="w-full">
+                
+                <label class="text-[10px] font-bold text-slate-500">FRASE MOTIVACIONAL (PARA O PDF)</label>
+                <input type="text" id="cfgPhrase" placeholder="Foco no progresso!" class="w-full italic">
+                
+                <label class="text-[10px] font-bold text-slate-500">META DE GASTOS MENSAL</label>
+                <input type="text" id="cfgBudget" oninput="formatCurrency(this)" placeholder="Meta Mensal" class="w-full font-bold">
+                
+                <div class="p-3 bg-slate-900 rounded-xl flex items-start gap-2 border border-slate-800">
+                    <input type="checkbox" id="cfgIgnoreFixed" style="width:18px; height:18px; accent-color:#3b82f6;">
+                    <label for="cfgIgnoreFixed" class="text-[10px] text-blue-300 font-bold uppercase">Ignorar categoria 'Fixo' na Meta</label>
+                </div>
+                <button onclick="saveConfigs()" class="w-full p-3 bg-blue-600 rounded-xl font-bold mt-4">Salvar Alterações</button>
+                <button onclick="closeModal('modalConfig')" class="w-full text-slate-500 text-xs py-2">Voltar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalReport" class="modal"><div class="bg-[#0f172a] p-8 rounded-3xl w-full max-w-lg border border-slate-700 text-center overflow-y-auto max-h-[90vh]"><h2 class="text-xl font-bold mb-4 text-blue-400 uppercase">Relatório Detalhado</h2><div id="aiAssistant" class="mb-4 bg-blue-600/10 p-4 rounded-xl text-xs text-left italic border border-blue-800 tracking-tight text-blue-300">Assistente Analisando...</div><div class="grid grid-cols-2 gap-2 mb-4"><div class="card p-4"><p class="text-[9px] text-slate-500 uppercase">Total Entradas</p><p id="reportIn" class="font-bold text-emerald-400 text-sm"></p></div><div class="card p-4"><p class="text-[9px] text-slate-500 uppercase">Total Saídas</p><p id="reportOut" class="font-bold text-rose-400 text-sm"></p></div></div><div class="card mb-4 p-4"><p class="text-[9px] text-slate-500 uppercase mb-2">Gastos por Categoria</p><div id="reportCats" class="text-left text-xs space-y-1"></div></div><div class="card mb-4 p-4"><p class="text-[9px] text-slate-500 uppercase mb-2">Transações do Período</p><div id="reportTransactions" class="text-left text-xs space-y-1"></div></div><button onclick="closeModal('modalReport')" class="w-full p-3 bg-blue-600 rounded-xl font-bold text-sm text-white uppercase">Fechar</button></div></div>
+    <div id="modalImport" class="modal"><div class="bg-[#0f172a] p-8 rounded-3xl w-full max-w-md border border-slate-700 text-center"><h2 class="text-xl font-bold mb-2 text-amber-500">IMPORTAR DADOS</h2><textarea id="importData" rows="6" class="w-full text-[10px] font-mono mb-4" placeholder="Cole o código aqui..."></textarea><div class="flex gap-3"><button onclick="closeModal('modalImport')" class="flex-1 p-3 bg-slate-800 rounded-xl font-bold text-xs text-white">Sair</button><button onclick="processImport()" class="flex-1 p-3 bg-amber-600 rounded-xl font-bold text-xs text-white uppercase">Sincronizar</button></div></div></div>
+    <div id="modalExportExcel" class="modal"><div class="bg-[#0f172a] p-6 rounded-2xl w-full max-w-xs border border-slate-700 text-center"><h3 class="font-bold mb-4 text-emerald-500">Gerar Excel</h3><input type="date" id="exStEx" class="w-full mb-2"><input type="date" id="exEnEx" class="w-full mb-4"><button onclick="exportExcel()" class="w-full p-3 bg-emerald-600 rounded-xl font-bold text-white">Baixar Planilha</button></div></div>
+    <div id="modalExportPDF" class="modal"><div class="bg-[#0f172a] p-6 rounded-2xl w-full max-w-xs border border-slate-700 text-center"><h3 class="font-bold mb-4 text-rose-500">Gerar PDF</h3><input type="date" id="exStPd" class="w-full mb-2"><input type="date" id="exEnPd" class="w-full mb-4"><button onclick="exportPDF()" class="w-full p-3 bg-rose-600 rounded-xl font-bold text-white uppercase">Exportar PDF</button></div></div>
+
+    <script>
+        let myChart;
+        let settings = JSON.parse(localStorage.getItem('kaizen_v22_cfg')) || { name: "Usuário", phrase: "Foco no progresso!", currency: "JP¥", budget: 0, ignoreFixed: false, categories: [{n: "Fixo", c: "#3b82f6"}, {n: "Lazer", c: "#f43f5e"}, {n: "Alimentação", c: "#10b981"}, {n: "Saúde", c: "#8b5cf6"}, {n: "Mercado", c: "#f59e0b"}] };
+        let db = JSON.parse(localStorage.getItem('kaizen_v22_db')) || [];
+
+        function formatCurrency(i) { let v = i.value.replace(/\D/g,''); v = (v/100).toFixed(2) + ''; v = v.replace(".", ","); v = v.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,"); v = v.replace(/(\d)(\d{3}),/g, "$1.$2,"); i.value = v !== "0,00" ? v : ""; }
+        function parseCurrency(v) { return parseFloat(v.toString().replace(/\./g, '').replace(',', '.')) || 0; }
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; if(id==='modalConfig') renderConfigs(); if(id==='modalReport') renderInternalReport(); }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function showToast() { const x = document.getElementById("toast"); x.className = "show"; setTimeout(() => x.className = x.className.replace("show", ""), 3000); }
+
+        function openTransactionModal(editItem = null) {
+            document.getElementById('tCat').innerHTML = settings.categories.map(c => `<option>${c.n}</option>`).join('');
+            if(editItem) {
+                document.getElementById('editId').value = editItem.id;
+                document.getElementById('tVal').value = editItem.val.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                document.getElementById('tCat').value = editItem.cat;
+                document.getElementById('tDate').value = editItem.date;
+                document.getElementById('tDes').value = editItem.des;
+                document.getElementById('tTyp').value = editItem.typ;
+            } else {
+                document.getElementById('editId').value = "";
+                document.getElementById('tVal').value = "";
+                document.getElementById('tDes').value = "";
+                document.getElementById('tDate').value = new Date().toISOString().slice(0, 10);
+            }
+            openModal('modalTransacao');
+        }
+
+        function saveTransaction() {
+            const v = parseCurrency(document.getElementById('tVal').value); if(!v) return;
+            const id = document.getElementById('editId').value;
+            const data = { id: id || Date.now(), val: v, cat: document.getElementById('tCat').value, date: document.getElementById('tDate').value, des: document.getElementById('tDes').value || "Geral", typ: document.getElementById('tTyp').value };
+            if(id) db = db.map(t => t.id == id ? data : t); else db.push(data);
+            localStorage.setItem('kaizen_v22_db', JSON.stringify(db));
+            showToast();
+            closeModal('modalTransacao'); 
+            render();
+        }
+
+        function deleteT(id) { if(confirm("Deseja apagar este lançamento?")) { db = db.filter(t => t.id != id); localStorage.setItem('kaizen_v22_db', JSON.stringify(db)); render(); } }
+
+        function renderConfigs() {
+            document.getElementById('cfgName').value = settings.name;
+            document.getElementById('cfgPhrase').value = settings.phrase || "Foco no progresso!";
+            document.getElementById('cfgBudget').value = settings.budget > 0 ? settings.budget.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : "";
+            document.getElementById('cfgIgnoreFixed').checked = settings.ignoreFixed;
+        }
+
+        function saveConfigs() { 
+            settings.name = document.getElementById('cfgName').value; 
+            settings.phrase = document.getElementById('cfgPhrase').value;
+            settings.budget = parseCurrency(document.getElementById('cfgBudget').value); 
+            settings.ignoreFixed = document.getElementById('cfgIgnoreFixed').checked;
+            localStorage.setItem('kaizen_v22_cfg', JSON.stringify(settings)); closeModal('modalConfig'); render(); 
+        }
+
+        function render() {
+            const f = document.getElementById('monthFilter').value;
+            document.getElementById('userNameDisplay').innerText = settings.name;
+            document.getElementById('userPhraseDisplay').innerText = settings.phrase;
+            document.getElementById('greeting').innerText = `Olá, ${new Date().getHours()<12?'Bom dia':new Date().getHours()<18?'Boa tarde':'Boa noite'}`;
+            
+            let sIn = 0, sOut = 0, sSave = 0, sBudUse = 0, cats = {};
+            const list = document.getElementById('list'); list.innerHTML = "";
+
+            db.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(t => {
+                if(t.date.startsWith(f)) {
+                    if(t.typ==='in') sIn += t.val; 
+                    else if(t.typ==='out') { 
+                        sOut += t.val; cats[t.cat]=(cats[t.cat]||0)+t.val; 
+                        if(!settings.ignoreFixed || t.cat !== "Fixo") sBudUse += t.val;
+                    } else sSave += t.val;
+                    
+                    list.innerHTML += `<div class="flex justify-between items-center p-3 bg-slate-900/40 rounded-xl border border-slate-800"><div class="flex items-center gap-3"><button onclick='openTransactionModal(${JSON.stringify(t)})' class="text-slate-600">✎</button><div class="text-[10px] font-bold uppercase tracking-wide">${t.des} <span class="text-slate-600 ml-2">| ${t.cat}</span></div></div><div class="flex items-center gap-3"><span class="${t.typ==='in'?'text-emerald-400':t.typ==='out'?'text-rose-500':'text-blue-400'} font-bold text-xs">${settings.currency} ${t.val.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span><button onclick="deleteT(${t.id})" class="text-slate-800 hover:text-rose-500">✕</button></div></div>`;
+                }
+            });
+
+            document.getElementById('resIn').innerText = `${settings.currency} ${sIn.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('resOut').innerText = `${settings.currency} ${sOut.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('resTotal').innerText = `${settings.currency} ${(sIn-sOut).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('resSaved').innerText = `${settings.currency} ${sSave.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('resBudget').innerText = settings.budget > 0 ? `${settings.currency} ${(settings.budget - sBudUse).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : "-";
+            
+            updatePizza(cats);
+        }
+
+        function updatePizza(data) {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            if(myChart) myChart.destroy();
+            const labels = Object.keys(data);
+            const colors = labels.map(l => settings.categories.find(c => c.n === l)?.c || '#334155');
+            myChart = new Chart(ctx, { type: 'doughnut', data: { labels, datasets: [{ data: Object.values(data), backgroundColor: colors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 9, weight: 'bold' } } } } } });
+        }
+
+        // --- ASSISTENTE E RELATÓRIO INTERNO (NOVO) ---
+        function getAssistantComment(sIn, sOut, cats) {
+            let total = sOut;
+            if(total === 0) return "Ué, sem gastos este mês? Cadê a transparência? 🧐";
+
+            let topCat = Object.keys(cats).reduce((a, b) => cats[a] > cats[b] ? a : b);
+            let topPerc = (cats[topCat] / total * 100).toFixed(0);
+            
+            if (sIn < sOut) return `Eita, Morio! Gastando mais do que ganha? A matemática não perdoa... Vamos fechar a mão! 💸`;
+
+            if (topCat === "Lazer" && topPerc > 30) return `JPY ${cats[topCat].toLocaleString('pt-BR')} em Lazer? Tá achando que é feriado todo dia? Moderação, hein... 🏖️`;
+            if (topCat === "Mercado" && topPerc > 40) return `JPY ${cats[topCat].toLocaleString('pt-BR')} só no Mercado? Tá alimentando um batalhão ou estocando Onigiri pro apocalipse? 🍣`;
+            if (topCat === "Saúde") return `JPY ${cats[topCat].toLocaleString('pt-BR')} em Saúde... Importante se cuidar, mas esse valor assusta! Melhoras e controle no bolso! 💊`;
+            
+            if (total > settings.budget * 0.9 && settings.budget > 0) return `Foco no progresso! Você já gastou quase toda a sua meta do mês. Segura as pontas aí! ⚠️`;
+
+            return `Relatório analisado! A categoria "${topCat}" levou ${topPerc}% do seu dinheiro. Você tá no comando, mas olhe onde pisa! 😉`;
+        }
+
+        function renderInternalReport() {
+            const f = document.getElementById('monthFilter').value;
+            let sIn = 0, sOut = 0, cats = {};
+            let trans = [];
+
+            db.forEach(t => {
+                if(t.date.startsWith(f)) {
+                    if(t.typ==='in') sIn += t.val; 
+                    else if(t.typ==='out') { sOut += t.val; cats[t.cat]=(cats[t.cat]||0)+t.val; }
+                    trans.push(t);
+                }
+            });
+
+            document.getElementById('reportIn').innerText = `${settings.currency} ${sIn.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('reportOut').innerText = `${settings.currency} ${sOut.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('aiAssistant').innerText = getAssistantComment(sIn, sOut, cats);
+
+            let catsHtml = "";
+            Object.keys(cats).sort((a,b) => cats[b]-cats[a]).forEach(c => {
+                let perc = (cats[c] / sOut * 100).toFixed(0);
+                catsHtml += `<div class="flex justify-between items-center"><span class="font-bold">${c}</span><span class="text-slate-500">${settings.currency} ${cats[c].toLocaleString('pt-BR')} (${perc}%)</span></div>`;
+            });
+            document.getElementById('reportCats').innerHTML = catsHtml || "<p>Sem gastos este mês!</p>";
+
+            let transHtml = "";
+            trans.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(t => {
+                const color = t.typ==='in'?'text-emerald-400':'text-rose-500';
+                transHtml += `<div class="flex justify-between items-center border-b border-slate-800 py-1"><div class="flex items-center gap-2"><span class="text-[9px] text-slate-600">${t.date.slice(5)}</span><span class="font-semibold">${t.des}</span></div><span class="${color} font-bold">${settings.currency} ${t.val.toLocaleString('pt-BR')}</span></div>`;
+            });
+            document.getElementById('reportTransactions').innerHTML = transHtml || "<p>Sem transações no período!</p>";
+        }
+
+        // --- SINCRONIZAÇÃO E EXPORTAÇÃO ---
+        function exportBackup() { const code = btoa(JSON.stringify({ db, settings })); navigator.clipboard.writeText(code); alert("Backup gerado! Código copiado para sua área de transferência."); }
+        function processImport() { try { const code = document.getElementById('importData').value.trim(); const decoded = JSON.parse(atob(code)); db = decoded.db; settings = decoded.settings; localStorage.setItem('kaizen_v22_db', JSON.stringify(db)); localStorage.setItem('kaizen_v22_cfg', JSON.stringify(settings)); alert("Sincronização concluída!"); location.reload(); } catch(e) { alert("Código de backup inválido."); } }
+
+        function exportExcel() {
+            const st = document.getElementById('exStEx').value, en = document.getElementById('exEnEx').value;
+            const fil = db.filter(t => t.date >= st && t.date <= en);
+            const ws = XLSX.utils.json_to_sheet(fil);
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Kaizen");
+            XLSX.writeFile(wb, `Kaizen_Fin_${st}_${en}.xlsx`);
+        }
+
+        function exportPDF() {
+            const { jsPDF } = window.jspdf; const doc = new jsPDF();
+            const st = document.getElementById('exStPd').value, en = document.getElementById('exEnPd').value;
+            const fil = db.filter(t => t.date >= st && t.date <= en);
+            
+            // Resumo por Categoria
+            let catTotals = {};
+            fil.forEach(t => { if(t.typ === 'out') catTotals[t.cat] = (catTotals[t.cat] || 0) + t.val; });
+
+            // Cabeçalho Premium
+            doc.setFontSize(18); doc.setTextColor(40); doc.text(settings.name, 14, 20);
+            doc.setFontSize(10); doc.setTextColor(100); doc.text(settings.phrase, 14, 27);
+            doc.text(`Periodo: ${st} ate ${en}`, 14, 34);
+
+            // Tabela de Resumo por Categoria
+            doc.autoTable({
+                startY: 40,
+                head: [['RESUMO DE GASTOS POR CATEGORIA', 'TOTAL']],
+                body: Object.keys(catTotals).map(c => [c.toUpperCase(), `${settings.currency} ${catTotals[c].toLocaleString('pt-BR')}`]),
+                theme: 'striped',
+                headStyles: { fillColor: [51, 65, 85] }
+            });
+
+            // Tabela Principal
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 10,
+                head: [['Data', 'Descricao', 'Categoria', 'Valor']],
+                body: fil.map(t => [t.date, t.des, t.cat.toUpperCase(), `${settings.currency} ${t.val.toLocaleString('pt-BR')}`]),
+                styles: { fontSize: 8 },
+            });
+
+            doc.save(`Kaizen_Relatorio_${st}.pdf`);
+        }
+
+        // --- RENDERIZAR AO INICIAR ---
+        // Adicionar botão para abrir relatório interno no Dashboard
+        document.querySelector('nav').innerHTML += `<button onclick="openModal('modalReport')" class="sidebar-btn mt-4 text-emerald-400 border-solid border-emerald-900/30 font-bold">👀 Ver Relatório Interno</button>`;
+
+        document.getElementById('monthFilter').value = new Date().toISOString().slice(0, 7);
+        render();
+    </script>
+</body>
+</html>
